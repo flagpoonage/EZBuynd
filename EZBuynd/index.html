@@ -1,0 +1,37 @@
+﻿<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>TypeScript HTML App</title>
+    <link rel="stylesheet" href="app.css" type="text/css" />
+    <script src="DP/jquery-dev.js"></script>
+    <script src="DP/underscore-dev.js"></script>
+    <script src="DP/backbone-dev.js"></script>
+    <script src="ezbuynd-0.2.js"></script>
+    <script src="interfaces.js"></script>
+</head>
+<body>
+    <h1>TypeScript HTML App</h1>
+
+    <div id="content">
+        <div class="internal" ezb-each-value="options">
+            <div class="each_val" ezb-html="value.text"></div>
+            <div class="each_listing" >
+                <ul>
+                    <li class="each_listing_text" 
+                        ezb-each-listing="value.listing" 
+                        ezb-html="listing.text">
+                    </li>
+                </ul>
+            </div>
+            <ul>
+                <li class="external_each" ezb-each-external="list">
+                    <span class="external_each_name" ezb-html="external.text"></span>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
