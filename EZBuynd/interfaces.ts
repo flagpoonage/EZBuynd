@@ -3,12 +3,53 @@
     set(key: string, value: any): void;
 }
 
-interface IBinding {
-    data: any;
-    valueBindings: IValueBinding[];
-    childBindings: IBinding[];
-    eachBindings: IEachBinding[];
+interface IBindingData {
+    root: IBindable;
+    keys: IBindingDataKey[];
+}
+
+interface IBindingDataKey {
+    key: string;
+    dependency: IDependencyKey;
+    data: IBindable;
+}
+
+interface ITemplate {
+    sourceElement: HTMLElement;
+    baseElement: HTMLElement;
+    childTemplates: ITemplate[];
+    datasource: any;
+    updateFunction: () => void;
+    valueFunction: (data: any) => void;
+    dependencyKey: IDependencyKey;
+    valueBindings: IValueKey[];
+}
+
+interface IElementWatcher {
     el: HTMLElement;
+
+}
+
+interface IDependencyKey {
+    rootKey: IDependencyKey;
+    parent: IDependencyKey;
+    key: string;
+    value: string;
+    subkeys: IDependencyKey[];
+}
+
+interface IValueKey {
+    dependency: IDependencyKey;
+    value: string;
+    type: string;
+}
+
+interface IBinding {
+    datasource: IBindable;
+    els: HTMLElement;
+    rootTemplate: ITemplate;
+    updateBinding: () => void;
+    setDataSource: (datasource: any) => void;
 }
 
 interface IValueBinding {
@@ -33,10 +74,12 @@ interface IEzbuyndAttribute {
     value: string;
     attributeArgs: string[];
     valueArgs: string[];
-    dependsOn: string;
+    fullname: string;
+    fullvalue: string;
 }
 
 interface IEachBinding {
+    el: HTMLElement;
     parentBinding: IEachBinding;
     parentKey: string;
     name: string;
@@ -48,7 +91,7 @@ interface IEZBuyndOptions {
 }
 
 interface IRootBinding {
-    element: HTMLElement;
+    el: HTMLElement;
     datasource: any;
     childbindings: IChildBinding[];
     valueBindings: IValueBinding[];

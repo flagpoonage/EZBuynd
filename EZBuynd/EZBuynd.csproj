@@ -24,7 +24,9 @@
     <Content Include="DP\underscore-dev.js" />
     <Content Include="underscore-dev.js" />
     <Content Include="index.html" />
-    <Content Include="web.config" />
+    <Content Include="web.config">
+      <SubType>Designer</SubType>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <None Include="web.Debug.config">
@@ -38,7 +40,7 @@
     <TypeScriptCompile Include="DP\backbone.d.ts" />
     <TypeScriptCompile Include="DP\jquery.d.ts" />
     <TypeScriptCompile Include="DP\underscore.d.ts" />
-    <TypeScriptCompile Include="ezbuynd-0.2.ts" />
+    <TypeScriptCompile Include="ezbuynd-0.3.ts" />
     <TypeScriptCompile Include="interfaces.ts" />
   </ItemGroup>
   <PropertyGroup>

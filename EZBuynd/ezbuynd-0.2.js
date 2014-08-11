@@ -70,6 +70,8 @@
                 }
 
                 results.attributes.push({
+                    fullname: attributes[i].name,
+                    fullvalue: attributes[i].value,
                     attributeArgs: args,
                     value: truekey,
                     valueArgs: arguments,
@@ -112,10 +114,7 @@
             var attributes = el.attributes;
 
             for (var i = 0; i < attributes.length; i++) {
-                var isBinding = attributes[i].name.indexOf('ezb-') === 0;
-                if (!isBinding) {
-                    dup.setAttribute(attributes[i].name, attributes[i].value);
-                }
+                dup.setAttribute(attributes[i].name, attributes[i].value);
             }
 
             return dup;
@@ -184,7 +183,8 @@
                     bindingAttribute: a,
                     updateFn: null,
                     valueFn: null,
-                    dependsOn: a.dependsOn
+                    dependsOn: a.dependsOn,
+                    el: el
                 };
 
                 vbind.valueFn = (function (k) {
@@ -201,11 +201,14 @@
                     };
                 })(a.value);
 
+                el.removeAttribute(a.fullname);
+
                 bindings.push(vbind);
             }
 
             for (var i = 0; i < el.children.length; i++) {
-                bindings.concat(_createValueBindings(el.children[i], eachBindings));
+                var childBindings = _createValueBindings(el.children[i], eachBindings);
+                bindings = bindings.concat(childBindings);
             }
 
             return bindings;
@@ -232,6 +235,26 @@
             return e;
         };
 
+        var _generateBaseHTML = function (el, parent, eb) {
+            var e = _duplicateElement(el);
+            var attr = _extractAttributes(el, eb);
+
+            if (attr.hasEach) {
+                var each = _getEach(attr);
+                parent.setAttribute('ezb-each-' + each.attributeArgs[0], '');
+                return;
+            } else {
+                for (var i = 0; i < el.children.length; i++) {
+                    var template = _generateBaseHTML(el.children[i], e, eb);
+                    if (!_.isUndefined(template)) {
+                        e.appendChild(template);
+                    }
+                }
+            }
+
+            return e;
+        };
+
         var _matchEachBinding = function (eachtag, eb) {
             for (var i = 0; i < eb.length; i++) {
                 if (eb[i].name === eachtag.dependsOn) {
@@ -243,7 +266,6 @@
         };
 
         var _createEachBinding = function (el, eb) {
-            var e = _duplicateElement(el);
             var attr = _extractAttributes(el, eb);
             var eachTag = _getEach(attr);
             var eachBinding = _matchEachBinding(eachTag, eb);
@@ -251,7 +273,8 @@
             var binding = {
                 parentBinding: eachBinding,
                 name: eachTag.attributeArgs[0],
-                collectiveFunction: null
+                collectiveFunction: null,
+                el: el
             };
 
             if (_.isUndefined(eachBinding)) {
@@ -274,7 +297,7 @@
         };
 
         var _createChildBinding = function (el, parent, rootDataSource, eb) {
-            var template = _buildHtmlTemplate(el, parent, eb);
+            var temp = _generateBaseHTML(el, parent, eb);
 
             var attr = _extractAttributes(el, eb);
 
@@ -286,12 +309,11 @@
 
             var binding = {
                 el: el,
-                template: template,
                 rootDataSource: rootDataSource,
                 eachBoundSources: bSource
             };
 
-            if (_.isUndefined(template)) {
+            if (_.isUndefined(el)) {
                 binding.eachBinding = _createEachBinding(el, eb);
                 var attributes = el.attributes;
                 for (var i = 0; i < attributes.length; i++) {
@@ -301,12 +323,10 @@
                     }
                 }
 
-                binding.template = _buildHtmlTemplate(el, parent, eb);
-
                 eb.push(binding.eachBinding);
             }
 
-            binding.valueBindings = _createValueBindings(binding.template, eb);
+            binding.valueBindings = _createValueBindings(el, eb);
 
             // Nested each templates have been removed from the current element,
             // but the each bindings for the templates have not been retrieved.
@@ -318,7 +338,7 @@
 
             var rootBinding = {
                 datasource: data,
-                element: el,
+                el: el,
                 childbindings: [],
                 valueBindings: []
             };

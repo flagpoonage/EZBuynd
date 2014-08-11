@@ -11,6 +11,8 @@ $(function () {
     var content = document.getElementById('content');
 
     var data = new BindableObject({
+        name: 'Main Value Name',
+        rootvalue: 'The Source!',
         options: [
             {
                 text: 'One',
