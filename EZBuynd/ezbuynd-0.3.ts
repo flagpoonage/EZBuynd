@@ -20,7 +20,10 @@
         var options = {
             attributePrefix: 'ezb-',
             valueArgSeperator: '|',
-            propertyBinder: '.'
+            propertyBinder: '.',
+            restoreOptionsKey: '__ezbRestoreOptions',
+            rootSetFunctionName: '__setRoot',
+            watchersPropName: '__ezbWatchers'
         }
 
         var _extractAttributes = (el: Element): IEzbuyndAttributes => {
@@ -224,8 +227,17 @@
                     var vkey = <IValueKey>{
                         type: a.type,
                         dependency: null,
-                        value: a.value
+                        value: a.value,
                     };
+
+                    for (var i = 0; i < a.valueArgs.length; i++) {
+                        if (a.valueArgs[i] === 'nowatch') {
+                            vkey.nowatch = true;
+                        }
+                        else if (a.valueArgs[i] === 'logchange') {
+                            vkey.logchange = true;
+                        }
+                    }
 
                     var keyparts = a.value.split(options.propertyBinder);
                     if (keyparts.length > 1) {
@@ -263,7 +275,7 @@
             return d;
         }
 
-        var _findBindingData = (bdata: IBindingData, key: string): IBindable => {
+        var _findBindingData = (bdata: IBindingData, key: string): any => {
             var data = bdata.keys[key];
 
             if (_.isUndefined(data)) {
@@ -274,127 +286,375 @@
             return data;
         }
 
-        // Main bind method
-        var bind = (originalElement: HTMLElement, data: IBindable): IBinding => {
-            var binding = <IBinding>{
-                datasource: data,
-                rootTemplate: _createTemplate(originalElement),
-            };
+        var _agnosticGet = (data: any, key: string): any => {
+            if (_.isUndefined(data.get)) {
+                return data[key];
+            }
+            else {
+                return data.get(key);
+            }
+        }
 
-            binding.rootTemplate = _createDataBindings(binding.rootTemplate.dependencyKey, binding.rootTemplate);
+        var _createObserver = (key: string, valueBinding: IValueKey, data: any, el: HTMLElement, binding:IBinding): void => {
+            var valueParts = key.split(options.propertyBinder);
 
-            if (originalElement.hasAttribute('id')) {
-                binding.rootTemplate.baseElement.setAttribute('id', originalElement.getAttribute('id'));
+            if (valueParts.length > 1) {
+                for (var i = 0; i < valueParts.length - 1; i++) {
+                    data = _agnosticGet(data, valueParts[i]);
+                }
+            }
+            var k = valueParts[valueParts.length - 1];
+            var watchFn;
+            if (!valueBinding.logchange) {
+                watchFn = () => {
+                    _binders[valueBinding.type](el, data.get(key));
+                }
+            }
+            else {
+                watchFn = () => {
+                    var val = _agnosticGet(data, key);
+                    console.log('Object changed', data);
+                    console.log('Value of "' + k + '" has been changed to: ', val);
+                    _binders[valueBinding.type](el, val);
+                }
             }
 
-            // Set data source method. Used internally and externally to rebind the entire obejct and recreate the HTML
-            binding.setDataSource = (datasource: IBindable): void => {
-                binding.datasource = datasource;
+            var exists = false;
 
-                var root = binding.rootTemplate;
-                var el = _cloneElement(root.baseElement, false);
-                for (var i = 0; i < root.valueBindings.length; i++) {
-                    var d = _getDataProperty(binding.datasource, root.valueBindings[i].value);
-                    _binders[root.valueBindings[i].type](el, d);
+            if (_.isUndefined(data[options.watchersPropName])) {
+                data[options.watchersPropName] = [];
+            }
+
+            for (var i = 0; i < data[options.watchersPropName].length; i++) {
+                if (k === data[options.watchersPropName][i].key && data[options.watchersPropName][i].binding == binding) {
+                    exists = true;
+                    data[options.watchersPropName][i].watchers.push(watchFn);
+                    break;
                 }
+            }
 
-                var bData = <IBindingData>{
-                    keys: {},
-                    root: datasource
+            if (!exists) {
+                var watcher = <IKeyWatcher>{
+                    key: k,
+                    watchers: [watchFn],
+                    binding: binding
                 };
 
-                // Creates child bindings for an object.
-                var childBindings = (parent: ITemplate, bindingData: IBindingData): HTMLElement[]=> {
-                    var els = [];
+                data[options.watchersPropName].push(watcher);
+            }
 
-                    var children = parent.childTemplates;
-                    for (var i = 0; i < children.length; i++) {
-                        if (!_.isNull(children[i].dependencyKey)) {
-                            var dkey = children[i].dependencyKey;
-                            var d;
-                            if (_.isUndefined(dkey.parent)) {
-                                d = _getDataProperty(bindingData.root, dkey.value);
-                            }
-                            else {
-                                d = _getDataProperty(_findBindingData(bindingData, dkey.parent.key), dkey.value);
-                            }
-                            if (_.isUndefined(d)) {
-                                console.log(bindingData, children[i]);
-                            }
+            if (_.isUndefined(data[options.restoreOptionsKey])) {
+                _createRestoreOptions(data, binding);
+            }
+            if (_.isUndefined(data[options.rootSetFunctionName])) {
+                if (!data[options.restoreOptionsKey].hasSetter) {
+                    data[options.rootSetFunctionName] = ((self: any) => {
+                         return (key: string, value: any): void => { self[key] = value; }
+                    })(data);
+                }
+                else {
+                    data[options.rootSetFunctionName] = data.set;
+                }
 
-                            for (var j = 0; j < d.length; j++) {
-                                bindingData.keys[dkey.key] = d[j];
-                                var childRoot = _cloneElement(children[i].baseElement, false);
-                                childRoot.removeAttribute(options.attributePrefix + 'each-' + dkey.key);
-                                var templateChildren = childBindings(children[i], bindingData);
-                                for (var k = 0; k < templateChildren.length; k++) {
-                                    childRoot.appendChild(templateChildren[k]);
+                data.set = ((self: any) => {
+                    return (key: string, value: any): void => {
+                        self[options.rootSetFunctionName](key, value);
+                        var w;
+                        for (var i = 0; i < self[options.watchersPropName].length; i++) {
+                            if (key === self[options.watchersPropName][i].key) {
+                                w = self[options.watchersPropName][i].watchers;
+                                for (var j = 0; j < w.length; j++) {
+                                    w[j]();
                                 }
-
-                                for (var k = 0; k < children[i].valueBindings.length; k++) {
-                                    var vbinding = children[i].valueBindings[k];
-                                    if (_.isNull(vbinding.dependency)) {
-                                        var childData = _getDataProperty(bindingData.root, vbinding.value);
-                                    }
-                                    else {
-                                        var childData = _getDataProperty(_findBindingData(bindingData, vbinding.dependency.key), vbinding.value);
-                                    }
-
-                                    _binders[vbinding.type](childRoot, childData);
-                                    childRoot.removeAttribute(options.attributePrefix + vbinding.type);
-                                }
-
-                                els.push(childRoot);
                             }
-                        }
-                        else {
-                            var innerEl = _cloneElement(children[i].baseElement, false);
-                            for (var j = 0; j < children[i].valueBindings.length; j++) {
-                                var vbinding = children[i].valueBindings[j];
-                                if (_.isNull(vbinding.dependency)) {
-                                    var d = _getDataProperty(bindingData.root, vbinding.value);
-                                }
-                                else {
-                                    var d = _getDataProperty(_findBindingData(bindingData, vbinding.dependency.key), vbinding.value);
-                                }
-
-                                _binders[vbinding.type](innerEl, d);
-                                innerEl.removeAttribute(options.attributePrefix + vbinding.type);
-                            }
-
-                            templateChildren = childBindings(children[i], bindingData);
-                            for (var j = 0; j < templateChildren.length; j++) {
-                                innerEl.appendChild(templateChildren[j]);
-                            }
-
-                            els.push(innerEl);
                         }
                     }
+                })(data);
+            }
 
-                    return els;
+            if (!data[options.restoreOptionsKey].hasGetter) {
+                data.get = ((self: any) => {
+                    return (key: string) => { return self[key]; }
+                })(data);
+            }
+        }
+
+        var _setDataSource = (datasource: any, originalElement: HTMLElement, binding: IBinding) => {
+            binding.datasource = datasource;
+
+            var currentElement = binding.els;
+
+            var root = binding.rootTemplate;
+            var el = _cloneElement(root.baseElement, false);
+
+            if (binding.rootTemplate.sourceElement.hasAttribute('id')) {
+                el.setAttribute('id', binding.rootTemplate.sourceElement.getAttribute('id'));
+            }
+
+            for (var i = 0; i < root.valueBindings.length; i++) {
+                var d = _getDataProperty(binding.datasource, root.valueBindings[i].value);
+                _binders[root.valueBindings[i].type](el, d);
+            }
+
+            var bData = <IBindingData>{
+                keys: {},
+                root: datasource
+            };
+
+            // Creates child bindings for an object.
+            var childBindings = (parent: ITemplate, bindingData: IBindingData): HTMLElement[]=> {
+                var els = [];
+
+                var children = parent.childTemplates;
+                for (var i = 0; i < children.length; i++) {
+                    if (!_.isNull(children[i].dependencyKey)) {
+                        var dkey = children[i].dependencyKey;
+                        var d;
+                        if (_.isUndefined(dkey.parent)) {
+                            d = _getDataProperty(bindingData.root, dkey.value);
+                        }
+                        else {
+                            d = _getDataProperty(_findBindingData(bindingData, dkey.parent.key), dkey.value);
+                        }
+                        if (_.isUndefined(d)) {
+                            console.log(bindingData, children[i]);
+                        }
+
+                        for (var j = 0; j < d.length; j++) {
+                            bindingData.keys[dkey.key] = d[j];
+                            var childRoot = _cloneElement(children[i].baseElement, false);
+                            childRoot.removeAttribute(options.attributePrefix + 'each-' + dkey.key);
+                            var templateChildren = childBindings(children[i], bindingData);
+                            for (var k = 0; k < templateChildren.length; k++) {
+                                childRoot.appendChild(templateChildren[k]);
+                            }
+
+                            for (var k = 0; k < children[i].valueBindings.length; k++) {
+                                var vbinding = children[i].valueBindings[k];
+                                if (_.isNull(vbinding.dependency)) {
+                                    var childData = _getDataProperty(bindingData.root, vbinding.value);
+                                    if (!vbinding.nowatch) {
+                                        _createObserver(vbinding.value, vbinding, bindingData.root, childRoot, binding);
+                                    }
+                                }
+                                else {
+                                    var childData = _getDataProperty(_findBindingData(bindingData, vbinding.dependency.key), vbinding.value);
+                                    if (!vbinding.nowatch) {
+                                        _createObserver(vbinding.value, vbinding, bindingData.root, childRoot, binding);
+                                    }
+                                }
+
+                                _binders[vbinding.type](childRoot, childData);
+                                childRoot.removeAttribute(options.attributePrefix + vbinding.type);
+                            }
+
+                            els.push(childRoot);
+                        }
+                    }
+                    else {
+                        var innerEl = _cloneElement(children[i].baseElement, false);
+                        for (var j = 0; j < children[i].valueBindings.length; j++) {
+                            var vbinding = children[i].valueBindings[j];
+                            if (_.isNull(vbinding.dependency)) {
+                                var d = _getDataProperty(bindingData.root, vbinding.value);
+                                if (!vbinding.nowatch) {
+                                    _createObserver(vbinding.value, vbinding, bindingData.root, innerEl, binding);
+                                }
+                            }
+                            else {
+                                var valueData = _findBindingData(bindingData, vbinding.dependency.key);
+                                var d = _getDataProperty(valueData, vbinding.value);
+                                if (!vbinding.nowatch) {
+                                    _createObserver(vbinding.value, vbinding, valueData, innerEl, binding);
+                                }
+                            }
+
+                            _binders[vbinding.type](innerEl, d);
+                            innerEl.removeAttribute(options.attributePrefix + vbinding.type);
+                        }
+
+                        templateChildren = childBindings(children[i], bindingData);
+                        for (var j = 0; j < templateChildren.length; j++) {
+                            innerEl.appendChild(templateChildren[j]);
+                        }
+
+                        els.push(innerEl);
+                    }
                 }
+
+                return els;
+            }
 
                 var children = childBindings(root, bData);
 
-                for (var i = 0; i < children.length; i++) {
-                    el.appendChild(children[i]);
-                }
-
-                binding.els = el;
+            for (var i = 0; i < children.length; i++) {
+                el.appendChild(children[i]);
             }
 
-            binding.setDataSource(data);
+            binding.els = el;
 
             if (document.body.contains(originalElement)) {
                 originalElement.parentNode.replaceChild(binding.els, originalElement);
             }
+            else if (document.body.contains(currentElement)) {
+                currentElement.parentNode.replaceChild(binding.els, currentElement);
+            }
+        }
+
+        var _unbindDataSource = (datasource: any, unbound: any[], binding: IBinding) => {
+            if (!_.isUndefined(datasource)) {                
+                if (!_.isUndefined(datasource[options.watchersPropName])) {
+                    for (var i = 0; i < datasource[options.watchersPropName].length; i++) {
+                        var w = datasource[options.watchersPropName][i];
+                        if (w.binding == binding) {
+                            datasource[options.watchersPropName].splice(i, 1);
+                            i--;
+                        }
+                    }
+
+                    if (datasource[options.watchersPropName].length === 0) {
+                        delete datasource[options.watchersPropName];
+                    }
+                }
+
+                var ro = datasource[options.restoreOptionsKey];
+
+                if (!_.isUndefined(ro) && _.isUndefined(datasource[options.watchersPropName])) {
+                    if (ro.hasSetter) {
+                        datasource.set == datasource[options.rootSetFunctionName];
+                    }
+                    else {
+                        delete datasource.set;
+                    }
+
+                    if (!ro.hasGetter) {
+                        delete datasource.get;
+                    }
+
+                    delete datasource[options.rootSetFunctionName];
+                    delete datasource[options.restoreOptionsKey];
+                }
+
+                var exclude = [
+                    options.restoreOptionsKey,
+                    options.rootSetFunctionName,
+                    options.watchersPropName,
+                    'set',
+                    'get'
+                ];
+
+                for (var prop in datasource) {
+                    var isExcluded = false;
+                    for (var q = 0; q < exclude.length; q++) {
+                        if (exclude[q] === prop) {
+                            isExcluded = true;
+                            break;
+                        }
+                    }
+
+                    if (isExcluded) {                        
+                        // The property found is one in the excluded list.
+                        continue;
+                    }
+
+                    // If the property belongs to the instance or instance class.
+                    if (Object.prototype.hasOwnProperty.call(datasource, prop)) {
+                        // If not an array or an object go to next property.
+                        if (_.isFunction(datasource[prop]) ||
+                            !_.isObject(datasource[prop]) ||
+                            _.isNull(datasource[prop]) ||
+                            _.isUndefined(datasource[prop])) {
+                            continue;
+                        }
+                        if (!_.isNull(unbound)) {
+                            // Array of already unbound objects should prevent circular recursion.
+                            var completed = false;
+                            for (var j = 0; j < unbound.length; j++) {
+                                if (unbound[j] == datasource[prop]) {
+                                    completed = true;
+                                    break;
+                                }
+                            }
+
+                            if (completed) {
+                                // A circular reference is detected, move to next property.
+                                continue;
+                            }
+                            unbound.push(datasource);
+                        }
+                        else {
+                            unbound = [datasource];
+                        }
+
+                        // If the property is an array, add the array as a whole to the completed object list
+                        // to prevent circular recursion, then unbind each individual object in the array.
+                        if (_.isArray(datasource[prop])) {
+                            unbound.push(datasource[prop]);
+                            for (var j = 0; j < datasource[prop].length; j++) {
+                                _unbindDataSource(datasource[prop][j], unbound, binding);
+                            }
+                        }
+                        else {
+                            _unbindDataSource(datasource[prop], unbound, binding);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Creates settings to use for unbinding the object at a later point in time.
+        var _createRestoreOptions = (datasource: any, binding: IBinding) => {
+            if(_.isUndefined(datasource[options.restoreOptionsKey])) {
+                datasource[options.restoreOptionsKey] = {
+                    hasSetter: !_.isUndefined(datasource.set),
+                    hasGetter: !_.isUndefined(datasource.get)
+                };
+            }
+        }
+
+        // Main bind method
+        var bind = (originalElement: HTMLElement, data: any): IBinding => {
+            var binding = <IBinding>{
+                _backup: originalElement,
+                rootTemplate: _createTemplate(originalElement),
+            };
+
+            _createRestoreOptions(data, binding);
+
+            binding.rootTemplate = _createDataBindings(binding.rootTemplate.dependencyKey, binding.rootTemplate);
+
+            // Set data source method. Used internally and externally to rebind the entire obejct and recreate the HTML
+
+            binding.setDataSource = ((b: IBinding, o: HTMLElement) => {
+                return (datasource: any) => {
+                    _unbindDataSource(b.datasource, null, b);
+                    _setDataSource(datasource, o, b)
+                }
+            })(binding, originalElement);
+
+            binding.setDataSource(data);
+
+            binding.unbind = ((b: IBinding) => {
+                return (command?: string) => {
+                    _unbindDataSource(b.datasource, null, b);
+                    if (!_.isUndefined(command)) {
+                        if (command === 'remove') {
+                            b.els.parentNode.removeChild(b.els);
+                        }
+                        else if (command === 'reset') {
+                            b.els.parentNode.replaceChild(b._backup, b.els);
+                        }
+                    }
+                }
+            })(binding);
 
             return binding;
         }
 
         return {
             options: options,
-            bind: bind
+            bind: bind,
+            binders: _binders
         }
     })();
 })(this); 

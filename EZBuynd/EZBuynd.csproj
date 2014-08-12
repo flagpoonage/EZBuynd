@@ -22,6 +22,13 @@
     <Content Include="DP\backbone-dev.js" />
     <Content Include="DP\jquery-dev.js" />
     <Content Include="DP\underscore-dev.js" />
+    <Content Include="ezbuynd-0.3.js" />
+    <Content Include="ezbuynd-0.3.min.js">
+      <DependentUpon>ezbuynd-0.3.js</DependentUpon>
+    </Content>
+    <Content Include="index.min.html">
+      <DependentUpon>index.html</DependentUpon>
+    </Content>
     <Content Include="underscore-dev.js" />
     <Content Include="index.html" />
     <Content Include="web.config">
@@ -29,6 +36,10 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="ezbuynd-0.3.js.map" />
+    <Content Include="ezbuynd-0.3.min.js.map">
+      <DependentUpon>ezbuynd-0.3.min.js</DependentUpon>
+    </Content>
     <None Include="web.Debug.config">
       <DependentUpon>web.config</DependentUpon>
     </None>
@@ -37,6 +48,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <TypeScriptCompile Include="BindableObject.ts" />
     <TypeScriptCompile Include="DP\backbone.d.ts" />
     <TypeScriptCompile Include="DP\jquery.d.ts" />
     <TypeScriptCompile Include="DP\underscore.d.ts" />

@@ -8,18 +8,54 @@
     <script src="DP/jquery-dev.js"></script>
     <script src="DP/underscore-dev.js"></script>
     <script src="DP/backbone-dev.js"></script>
-    <script src="ezbuynd-0.3.js"></script>
+    <script src="ezbuynd-0.3.min.js"></script>
     <script src="interfaces.js"></script>
+    <style type="text/css">
+        div.side_content, div.control{
+            width: 50%;
+            float: left;
+        }
+    </style>
 </head>
 <body>
     <h1>TypeScript HTML App</h1>
 
-    <div id="content">
+    <div class="control">
+        <button id="bind_one_1">Bind Data 1</button>
+        <button id="bind_two_1">Bind Data 2</button>
+        <button id="unbind_1">Unbind Data</button>
+    </div>
+    <div class="control">
+        <button id="bind_one_2">Bind Data 1</button>
+        <button id="bind_two_2">Bind Data 2</button>
+        <button id="unbind_2">Unbind Data</button>
+    </div>
+    <div class="side_content">
+
         <div class="name-span" ezb-html="name"></div>
         <div class="internal" ezb-each-value="options">
-            <div class="each_val" ezb-html="value.text"></div>
-            <div class="each_listing" >
-                <ul>
+            <div class="each_val" ezb-html="value.text|logchange"></div>
+            <div class="each_listing">
+                <ul ezb-value="test.value">
+                    <li class="each_listing_text" ezb-each-listing="value.listing">
+                        <span ezb-html="listing.text"></span>
+                        <span ezb-html="rootvalue"></span>
+                    </li>
+                </ul>
+            </div>
+            <ul ezb-ignore="true">
+                <li class="external_each" ezb-each-external="list">
+                    <span class="external_each_name" ezb-html="external.text"></span>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div class="side_content">
+        <div class="name-span" ezb-html="name"></div>
+        <div class="internal" ezb-each-value="options">
+            <div class="each_val" ezb-html="value.text|logchange"></div>
+            <div class="each_listing">
+                <ul ezb-value="test.value">
                     <li class="each_listing_text" ezb-each-listing="value.listing">
                         <span ezb-html="listing.text"></span>
                         <span ezb-html="rootvalue"></span>
