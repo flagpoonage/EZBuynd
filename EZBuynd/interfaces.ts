@@ -1,4 +1,23 @@
 ﻿/**
+ * Defines an object template for an array and a specific binding
+ */
+interface IArrayTemplate {
+    /**
+     * The binding that the array template belongs to
+     */
+    binding: IBinding;
+    /**
+     * The template for the array.
+     */
+    template: ITemplate;
+
+    /**
+     * The creator function for new elements.
+     */
+    creator: (newData: any) => HTMLElement;
+}
+
+/**
  * A watcher collection for a specific property on a specific HTML binding.
  */
 interface IKeyWatcher {
@@ -53,26 +72,57 @@ interface IBindingDataKey {
  * Defines a binding template for a specific HTML element
  */
 interface ITemplate {
+
+    /**
+     * Appends a new HTML element to the end of this template
+     */
+    appendNew: (el: HTMLElement) => void;
+
+    /**
+     * Prepends a new HTML element to the end of this template.
+     */
+    prependNew: (el: HTMLElement) => void;
+
     /**
      * The original source HTML element for this template.
      */
     sourceElement: HTMLElement;
+
     /**
      * The HTML for this specific element.
      */
     baseElement: HTMLElement;
+
+    /**
+     * The currently generated HTML element for this template
+     */
+    el: HTMLElement;
+
+    /**
+     * The currently generated HTML element that is the parent of this template.
+     */
+    parentEl: HTMLElement;
+
+    /**
+     * This templates parent.
+     */
+    parentTemplate: ITemplate;
+
     /**
      * Child templates representing each child of this HTML element
      */
     childTemplates: ITemplate[];
+
     /**
      * The datasource that is applied to this template.
      */
     datasource: any;
+
     /**
      * The dependency of this template on a parent data collection.
      */
     dependencyKey: IDependencyKey;
+
     /**
      * The collection of specific value bindings that apply to this HTML element in this DOM binding
      */
@@ -242,3 +292,77 @@ interface IEzbuyndAttribute {
     fullvalue: string;
 }
 
+/**
+ * The restore options for a data source
+ */
+interface IRestoreOptions {
+    /**
+     * Indicates whether the data source is an array or not.
+     */
+    isArray: boolean;
+
+    /**
+     * The restore options for the object
+     */
+    objectOptions: IObjectRestoreOptions;
+
+    /**
+     * The restore options for the array
+     */
+    arrayOptions: IArrayRestoreOptions;
+}
+
+/**
+ * Restore options for a non-array object.
+ */
+interface IObjectRestoreOptions {
+    /**
+     * Indicates whether the datasource originally had a getter
+     */
+    hasGetter: boolean;
+    /**
+     * Indicates whether the datasource originally has a setter
+     */
+    hasSetter: boolean;
+}
+
+/**
+ * Restore options for an array.
+ */
+interface IArrayRestoreOptions {
+
+    /**
+     * The arrays original pop function
+     */
+    pop: () => any;
+
+    /**
+     * The arrays original push function
+     */
+    push: (...elements: any[]) => number;
+
+    /**
+     * The arrays original reverse function
+     */
+    reverse: () => any;
+
+    /**
+     * The arrays original shift function
+     */
+    shift: () => any;
+
+    /**
+     * The arrays original sort function
+     */
+    sort: (compareFn?: Function) => any[];
+
+    /**
+     * The arrays original splice function
+     */
+    splice: (index: number, howMany?: number, ...elements: any[]) => any[];
+
+    /**
+     * The arrays original unshift function
+     */
+    unshift: (...elements: any[]) => number;
+}

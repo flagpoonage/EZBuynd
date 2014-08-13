@@ -37,13 +37,13 @@ $(function () {
                 ]
             },
         ],
-        list: [
-            { text: 'ext-0' },
-            { text: 'ext-1' },
-            { text: 'ext-2' },
-            { text: 'ext-3' },
-            { text: 'ext-4' }
-        ]
+        //list: [
+        //    { text: 'ext-0' },
+        //    { text: 'ext-1' },
+        //    { text: 'ext-2' },
+        //    { text: 'ext-3' },
+        //    { text: 'ext-4' }
+        //]
     };
 
     window.test_2 ={
